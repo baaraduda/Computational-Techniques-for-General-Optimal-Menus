@@ -7,6 +7,9 @@ import scipy.stats as stats
 from tqdm import tqdm
 from scipy.stats import truncnorm
 from scipy.stats import rv_continuous
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from statsmodels.distributions.empirical_distribution import ECDF
 
 ##All functions used in the computations and all global parameters
 
@@ -33,7 +36,7 @@ mean = (a+b)/2 #own choice how the mean relates to a and b
 eta = 1
 
 #the amount of optimal decisions the social planner can make for his population
-n=2
+n=5
 
 #the benchmark is the optimal partition for eta=1 and gamma uniform
 def my_formula(i):
@@ -42,7 +45,6 @@ benchmark = np.fromfunction(my_formula,(n+1,))
 
 #guessP is the initial guess for the gradient descent algorithm
 guessP= np.linspace(a,b,n+1) 
-
 
 class MixtureDistribution(rv_continuous):
     def __init__(self, dist1, dist2, w1):
@@ -54,24 +56,32 @@ class MixtureDistribution(rv_continuous):
     def _pdf(self, x):
         return self.w1 * self.dist1.pdf(x) + (1 - self.w1) * self.dist2.pdf(x)
 
+
 def optimaldecision(a,b, Gamma):
 
     def f(m):
         def e(g):
             return np.exp(g*.5*(sigma**2)*(eta-1)*T*(m**2))
-        if len(Gamma)==1:
-            integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
-            E1,_ = integrate.quad(integrand1, a, b)
-            integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
-            E2,_ = integrate.quad(integrand2, a, b)
+        if Gamma[-1]==0:
+            if len(Gamma)==2:
+                integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
+                E1,_ = integrate.quad(integrand1, a, b)
+                integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
+                E2,_ = integrate.quad(integrand2, a, b)
 
-            return m-(mu-r)/((sigma**2)*E1/E2)
-        
-        if len(Gamma)==2:
-            integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-            E1,_ = integrate.quad(integrand1, a, b)
-            integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-            E2,_ = integrate.quad(integrand2, a, b)
+                return m-(mu-r)/((sigma**2)*E1/E2)
+            
+            if len(Gamma)==3:
+                integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                E1,_ = integrate.quad(integrand1, a, b)
+                integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                E2,_ = integrate.quad(integrand2, a, b)
+
+                return m-(mu-r)/((sigma**2)*E1/E2)
+        else:
+            indices = np.where((Gamma[0].x >= a) & (Gamma[0].x <= b))[0]
+            E1 = np.sum(Gamma[0].x[indices] * e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
+            E2 = np.sum(e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
 
             return m-(mu-r)/((sigma**2)*E1/E2)
 
@@ -120,30 +130,36 @@ def objective_function(pg, Gamma):
 def parttodecision(partition):
     return [optimaldecision(partition[i],partition[i+1]) for i in range(len(partition))]
 
-def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1, max_iterations=100, epsilon=1e-8, tolerance=1e-3, beta1=0.9, beta2=0.999):
-
+def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1, max_iterations=1000, epsilon=1e-8, tolerance=1e-2, beta1=0.9, beta2=0.999):
 
     def optimaldecision(a,b):
-    
+
         def f(m):
             def e(g):
                 return np.exp(g*.5*(sigma**2)*(eta-1)*T*(m**2))
-            if len(Gamma)==1:
-                integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
-                E1,_ = integrate.quad(integrand1, a, b)
-                integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
-                E2,_ = integrate.quad(integrand2, a, b)
+            if Gamma[-1]==0:
+                if len(Gamma)==2:
+                    integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
+                    E1,_ = integrate.quad(integrand1, a, b)
+                    integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
+                    E2,_ = integrate.quad(integrand2, a, b)
+
+                    return m-(mu-r)/((sigma**2)*E1/E2)
+                
+                if len(Gamma)==3:
+                    integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                    E1,_ = integrate.quad(integrand1, a, b)
+                    integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                    E2,_ = integrate.quad(integrand2, a, b)
+
+                    return m-(mu-r)/((sigma**2)*E1/E2)
+            else:
+                indices = np.where((Gamma[0].x >= a) & (Gamma[0].x <= b))[0]
+                E1 = np.sum(Gamma[0].x[indices] * e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
+                E2 = np.sum(e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
 
                 return m-(mu-r)/((sigma**2)*E1/E2)
-            
-            if len(Gamma)==2:
-                integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                E1,_ = integrate.quad(integrand1, a, b)
-                integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                E2,_ = integrate.quad(integrand2, a, b)
 
-                return m-(mu-r)/((sigma**2)*E1/E2)
-    
         x0 = .5 * ((mu-r)/(b*(sigma**2) + (mu-r)/(a*(sigma**2))))
 
         sol = root(f, x0)
@@ -229,20 +245,35 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
     
     return path
 
-def Algorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=100,tolerance=1e-2):
+def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=1000,tolerance=1e-2):
     def optimaldecision(a,b):
-    
+
         def f(m):
             def e(g):
                 return np.exp(g*.5*(sigma**2)*(eta-1)*T*(m**2))
+            if Gamma[-1]==0:
+                if len(Gamma)==2:
+                    integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
+                    E1,_ = integrate.quad(integrand1, a, b)
+                    integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
+                    E2,_ = integrate.quad(integrand2, a, b)
 
-            integrand1 = lambda g: g * e(g) * Gamma.pdf(g)
-            E1,_ = integrate.quad(integrand1, a, b)
-            integrand2 = lambda g: e(g) * Gamma.pdf(g)
-            E2,_ = integrate.quad(integrand2, a, b)
+                    return m-(mu-r)/((sigma**2)*E1/E2)
+                
+                if len(Gamma)==3:
+                    integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                    E1,_ = integrate.quad(integrand1, a, b)
+                    integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                    E2,_ = integrate.quad(integrand2, a, b)
 
-            return m-(mu-r)/((sigma**2)*E1/E2)
-    
+                    return m-(mu-r)/((sigma**2)*E1/E2)
+            else:
+                indices = np.where((Gamma[0].x >= a) & (Gamma[0].x <= b))[0]
+                E1 = np.sum(Gamma[0].x[indices] * e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
+                E2 = np.sum(e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
+
+                return m-(mu-r)/((sigma**2)*E1/E2)
+
         x0 = .5 * ((mu-r)/(b*(sigma**2) + (mu-r)/(a*(sigma**2))))
 
         sol = root(f, x0)

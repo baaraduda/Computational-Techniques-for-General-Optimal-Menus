@@ -6,7 +6,7 @@ def comparisonAdam(n):
     tolerance = 1e-3
     print('adam', f"n={n}")
     for etai in np.linspace(0,100,5):
-        P= AdamAlgorithm(a,b, eta = etai, Gamma= [Gamma3], guess = np.linspace(a,b,n+1), learning_rate=.1, max_iterations=1000, epsilon=1e-8, tolerance=tolerance, beta1=0.9, beta2=0.999)
+        P= AdamAlgorithm(a,b, eta = etai, Gamma= [ecdf,1], guess = np.linspace(a,b,n+1), learning_rate=.1, max_iterations=1000, epsilon=1e-8, tolerance=tolerance, beta1=0.9, beta2=0.999)
         for i in range(1,n-1):
             g_values = [(p[i],p[i+1]) for p in P]
             g1, g2 = zip(*g_values)
@@ -57,10 +57,10 @@ def progression(P):
 
     estimation = P[-2]
     Gamma=[Gamma0]
-    print('benchmark:', benchmark, 'with value:', objective_function(benchmark,Gamma), "and goal value:", goal_function(benchmark, Gamma))
-    print('improvement from benchmark:', (goal_function(estimation,Gamma) - goal_function(benchmark,Gamma)) / goal_function(benchmark,Gamma)* 100, '%,  ')
-    print('estimation:' , estimation , 'with value:' , objective_function(estimation, Gamma), "and goal value:", goal_function(estimation, Gamma))
-    print('value guess: ', objective_function(guessP,Gamma), 'improvement from guess', (goal_function(estimation,Gamma) - goal_function(guessP,Gamma)) / goal_function(guessP,Gamma) * 100, '%')
+    # print('benchmark:', benchmark, 'with value:', objective_function(benchmark,Gamma), "and goal value:", goal_function(benchmark, Gamma))
+    # print('improvement from benchmark:', (goal_function(estimation,Gamma) - goal_function(benchmark,Gamma)) / goal_function(benchmark,Gamma)* 100, '%,  ')
+    # print('estimation:' , estimation , 'with value:' , objective_function(estimation, Gamma), "and goal value:", goal_function(estimation, Gamma))
+    # print('value guess: ', objective_function(guessP,Gamma), 'improvement from guess', (goal_function(estimation,Gamma) - goal_function(guessP,Gamma)) / goal_function(guessP,Gamma) * 100, '%')
 
 
 def varyingeta(n, gammas, labels, colors):
@@ -69,7 +69,7 @@ def varyingeta(n, gammas, labels, colors):
     fig2, Dax = plt.subplots(figsize=(8, 6))
     
     # Define the chosen values for eta
-    chosenEta = np.linspace(0, 200, 5)
+    chosenEta = np.linspace(0, 200, 3)
     circumstances = chosenEta.copy()
 
     # Iterate over gammas and compute the partitions for each eta value
@@ -83,32 +83,40 @@ def varyingeta(n, gammas, labels, colors):
         def m(g):
             return (mu-r)/(g*(sigma**2))
 
-        def optimaldecision(a,b,Gamma):
-        
+        def optimaldecision(a,b, Gamma):
+
             def f(m):
                 def e(g):
                     return np.exp(g*.5*(sigma**2)*(eta-1)*T*(m**2))
-                if len(Gamma)==1:
-                    integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
-                    E1,_ = integrate.quad(integrand1, a, b)
-                    integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
-                    E2,_ = integrate.quad(integrand2, a, b)
+                if Gamma[-1]==0:
+                    if len(Gamma)==2:
+                        integrand1 = lambda g: g * e(g) * Gamma[0].pdf(g)
+                        E1,_ = integrate.quad(integrand1, a, b)
+                        integrand2 = lambda g: e(g) * Gamma[0].pdf(g)
+                        E2,_ = integrate.quad(integrand2, a, b)
+
+                        return m-(mu-r)/((sigma**2)*E1/E2)
+                    
+                    if len(Gamma)==3:
+                        integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                        E1,_ = integrate.quad(integrand1, a, b)
+                        integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
+                        E2,_ = integrate.quad(integrand2, a, b)
+
+                        return m-(mu-r)/((sigma**2)*E1/E2)
+                else:
+                    indices = np.where((Gamma[0].x >= a) & (Gamma[0].x <= b))[0]
+                    E1 = np.sum(Gamma[0].x[indices] * e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
+                    E2 = np.sum(e(Gamma[0].x[indices])) / len(Gamma[0].x[indices])
 
                     return m-(mu-r)/((sigma**2)*E1/E2)
-                
-                if len(Gamma)==2:
-                    integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                    E1,_ = integrate.quad(integrand1, a, b)
-                    integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                    E2,_ = integrate.quad(integrand2, a, b)
 
-                    return m-(mu-r)/((sigma**2)*E1/E2)
-        
             x0 = .5 * ((mu-r)/(b*(sigma**2) + (mu-r)/(a*(sigma**2))))
 
             sol = root(f, x0)
 
             return sol.x[0]
+
 
         solutions=[AdamAlgorithm(a,b,etai,gamma,np.linspace(a,b,n+1),max_iterations=1000 ,tolerance=1e-6)[-2] for etai in chosenEta]
         partitions=[solution[1:-1] for solution in solutions]
@@ -178,7 +186,7 @@ def varyingeta(n, gammas, labels, colors):
 
 
 eta= 1
-n=5
+n=4
 
 learning_rate = 1
 max_iterations = 100
@@ -187,7 +195,7 @@ tolerance = 1e-1
 epsilon= 1e-8
 
 #uniform,
-Gamma0 = stats.uniform(a,b)
+Gamma0 = stats.uniform(a,b-a)
 
 #normal center
 Gamma1 = stats.truncnorm((a - mean) / sig, (b - mean) / sig, mean, sig)
@@ -200,7 +208,7 @@ Gamma3 = stats.truncnorm((a - b) / sig, (b - b) / sig, b, sig)
 
 
 # Define the gammas to use
-gammas0 = [[Gamma3]]
+gammas0 = [[Gamma3,0]]
 labels0 = ['Uniform']
 colors0 = ['blue']
 
@@ -212,15 +220,27 @@ gammas2 = [[Gamma1], [Gamma2], [Gamma3]]
 labels2 = [ 'Normal Center', 'Normal Left', 'Normal Right']
 colors2 = ['orange', 'green', 'red']
 
+
+# data1 = Gamma2.rvs(5000)
+# data2 = Gamma3.rvs(5000)
+# data = np.sort(np.concatenate([data1,data2]))
+# ecdf = ECDF(data)
+
+GammaE = ECDF(Gamma0.rvs(100000))
+
+#varyingeta(2, [[ecdf,1], [Gamma2, Gamma3, 0]], labels1, colors1)
+
 # comparisonAdam(3)
-# comparisonAdam(4)
-# comparisonAdam(5)
+# comparisonAdam(3)
+# # comparisonAdam(5)
 
-# P = AdamAlgorithm(a,b,eta=1, Gamma=[Gamma0], guess=np.linspace(a,b,n+1) ,tolerance=1e-3)
-# progression(P)
-varyingeta(2, gammas1, labels1, colors1)
+P = AdamAlgorithm(a,b,eta=1, Gamma=[Gamma0,0], guess=np.linspace(a,b,n+1))
+print(P[-2])
+
+P = AdamAlgorithm(a,b,eta=1, Gamma=[GammaE,1], guess=np.linspace(a,b,n+1))
+print(P[-2])
+
 #comparisonAdam(3)
-
 
 
 
