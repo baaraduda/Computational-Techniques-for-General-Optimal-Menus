@@ -1,5 +1,6 @@
 # This file is dedicated to produce all results needed in my thesis. Clarity is a must!
 import numpy as np
+
 import math
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
@@ -13,13 +14,16 @@ import matplotlib.pyplot as plt
 from statsmodels.distributions.empirical_distribution import ECDF
 from functions import *
 
+
 #choice of gamma distributions
 N = 10000
+np.random.seed(126)
 
 #uniform
 Gamma0 = stats.uniform(a,b-a)
 Gamma0E = ECDF(Gamma0.rvs(N))
-
+#plt.hist(Gamma0E.x[1:], bins=100, density=True)
+#plt.show()
 #normal center
 Gamma1 = stats.truncnorm((a - mean) / sig, (b - mean) / sig, mean, sig)
 Gamma1E = ECDF(Gamma1.rvs(N))
@@ -35,9 +39,6 @@ Gamma3 = stats.truncnorm((a - b) / sig, (b - b) / sig, b, sig)
 #normal dip
 
 Gamma4E = ECDF(np.sort(np.concatenate([Gamma2.rvs(N//2), Gamma3.rvs(N//2)])))
-
-
-
 
 
 #gamma = [GammaX, 0/1] where 1 is ecdf and 0 is cdf
@@ -93,18 +94,19 @@ def gammadistributions():
     plt.legend(fontsize= 'large')
     plt.show()
 
-def learningratecomparison(n, eta, gamma, adam = 0):
+def comparison(n, eta, gamma, adam = 1):
     '''
     n: is the amount of decisions. choose n >= 3 for best graphs
 
     adam: 1 if use Adams algorithm, 0 if use GD algorithm
     '''
 
-    for LR in [.1,.5,1,5]:
+    for LR in [.9]:
 
         if adam == 1:
             print('Adam', f"LR={LR}")
-            P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1), learning_rate=LR)
+            P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
+            print(P[-2])
             for i in range(1,n-1):
                 g_values = [(p[i],p[i+1]) for p in P]
                 g1, g2 = zip(*g_values)
@@ -112,7 +114,7 @@ def learningratecomparison(n, eta, gamma, adam = 0):
 
         if adam == 0:
             print('Gradient-Descent', f"LR={LR}")
-            P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1), learning_rate=LR)
+            P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
             for i in range(1,n-1):
                 g_values = [(p[i],p[i+1]) for p in P]
                 g1, g2 = zip(*g_values)
@@ -125,33 +127,33 @@ def learningratecomparison(n, eta, gamma, adam = 0):
     plt.text(b-0.1, b-0.1, "Feasible Boundary", fontsize=10)
     plt.legend(fontsize=20)
     plt.show()
-#learningratecomparison(3, 1, [eGamma,1], 0)
+#comparison(3, 1, [Gamma1E,1], 1)
 
-def AdamGDcomparison(eta, gamma):
-    for n in [3]:
+def AdamGDcomparison(n,eta, gamma):
+    # print('Adam', f"n={n}")
+    # P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
+    # print(P[-2])
+    # for i in range(1,n-1):
+    #     g_values = [(p[i],p[i+1]) for p in P]
+    #     g1, g2 = zip(*g_values)
+    #     plt.plot(g1, g2, '-o', label=f"Adam pair ({i},{i+1}): n={n}")
 
-        print('Adam', f"n={n}")
-        P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-        for i in range(1,n-1):
-            g_values = [(p[i],p[i+1]) for p in P]
-            g1, g2 = zip(*g_values)
-            plt.plot(g1, g2, '-o', label=f"Adam pair ({i},{i+1}): n={n}")
+    print('Gradient-Descent', f"n={n}")
+    P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
+    print(P[-2])
+    for i in range(1,n-1):
+        g_values = [(p[i],p[i+1]) for p in P]
+        g1, g2 = zip(*g_values)
+        plt.plot(g1, g2, '-o', label=f"Gradient-Descent pair ({i},{i+1}): n={n}")
 
-        print('Gradient-Descent', f"n={n}")
-        P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-        for i in range(1,n-1):
-            g_values = [(p[i],p[i+1]) for p in P]
-            g1, g2 = zip(*g_values)
-            plt.plot(g1, g2, '-o', label=f"Gradient-Descent pair ({i},{i+1}): n={n}")
+    diagonal = [(x,x) for x in np.linspace(a,b,2)]
+    x1,x2 = zip(*diagonal)
+    plt.plot(x1,x2,'-o', label="Feasible Boundary")
 
-        diagonal = [(x,x) for x in np.linspace(a,b,2)]
-        x1,x2 = zip(*diagonal)
-        plt.plot(x1,x2,'-o', label="Feasible Boundary")
-
-        plt.text(b-0.1, b-0.1, "Feasible Boundary", fontsize=10)
-        plt.legend(fontsize=20)
-        plt.show()
-#AdamGDcomparison(1,[GammaE,1])
+    plt.text(b-0.1, b-0.1, "Feasible Boundary", fontsize=10)
+    plt.legend(fontsize=20)
+    plt.show()
+#AdamGDcomparison(4,1,[Gamma0E,1])
 
 def empericalEstimation(n, eta, gamma):
 
@@ -178,7 +180,7 @@ def empericalEstimation(n, eta, gamma):
     ax.set_title('Progression of Estimated Partition')
 
     plt.show()
-#empericalEstimation(3, 1, [Gamma0,0])
+#empericalEstimation(2, 1, [Gamma0,0])
 
 def progressionAlgorithm(n, eta, gamma):
     Pgoal = AdamAlgorithm(a,b,eta,gamma, guess=np.linspace(a,b,n+1))[-2]
@@ -314,3 +316,58 @@ def varyingEta(n, Gamma):
     Dax.legend()
     plt.show()
 #varyingEta(2, [[Gamma0E,1], [Gamma1E,1], [Gamma4E,1]])
+
+def costOptimum(n,Eta,Gamma, ColLab, f):
+
+    for i, gamma in enumerate(Gamma):
+
+
+
+
+    objList=[]
+    k=1
+    for m in range(1,n+1):
+        print(m)
+        P =GDAlgorithm(a,b,eta,gamma, np.linspace(a,b,m+1))[-2]
+        objList.append(goal_function(P,eta, gamma))
+
+    objInfo = [(i+1, objList[i]) for i in range(len(objList))]
+    print(objInfo)
+
+    c = [(objList[i+1]-objList[i])/(f(i+2)-f(i+1)) for i in range(len(objList)-1)]
+
+    cInfo = [(i+2, c[i]) for i in range(len(c))]
+    print(cInfo)
+
+    for i in range(len(c)-1):
+        if c[i]<c[i+1]:
+            k = i
+    X = [x for x in range(2,n)]
+    Y = [[c[i],c[i+1]] for i in range(n-2)]
+    for x, (y1, y2) in zip(X, Y):
+        plt.plot([x] * 2, [y1, y2], '-o', color='red')
+    plt.xlim(0, n)  
+    plt.show()
+
+    ck = (c[k-1] + c[k])/2
+    cl = (c[k] + c[k+1])/2
+
+    Ck = [objList[i]-ck*f(i+1) for i in range(len(objList))]
+    CkInfo = [(i+1, Ck[i]) for i in range(len(Ck))]
+
+
+    Cl = [objList[i]-cl*f(i+1) for i in range(len(objList))]
+    ClInfo = [(i+1, Cl[i]) for i in range(len(Cl))]
+
+
+    print(f'cost factor c where n={k+1} is optimal is {ck} with costlist= {CkInfo}')
+    print(f'cost factor c where n={k+2} is optimal is {cl} with costlist= {ClInfo}')
+
+    # percentages = [(c[i+1]-c[i])/c[i] for i in range(len(c)-1)]
+    # print(percentages)
+def f(x):
+    return x**2
+
+costOptimum(10, 1, [Gamma0E,1], f)
+
+comparison = [0, [Gamma0E, Gamma1E], ['Uniform', 'Normal Center'], ['blue', 'orange']]

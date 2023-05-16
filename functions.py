@@ -91,7 +91,7 @@ def optimaldecision(a,b, Gamma):
 
     return sol.x[0]
 
-def goal_function(pg,Gamma):
+def goal_function(pg,eta,Gamma):
     sum = 0
 
     def Usp(eta,c):
@@ -104,11 +104,15 @@ def goal_function(pg,Gamma):
     for i in range(1, len(pg)):
         mi = optimaldecision(pg[i-1],pg[i], Gamma)
         def vce(g):
-            return Usp(eta, np.exp(r*T + (mu - r)*mi*T-.5*g*(sigma**2)*(mi**2)*T))        
-        integrand = lambda g: vce(g)*Gamma[0].pdf(g)
-        E,_ = integrate.quad(integrand, pg[i-1], pg[i])
-        sum += E
-    
+            return Usp(eta, np.exp(r*T + (mu - r)*mi*T-.5*g*(sigma**2)*(mi**2)*T))   
+        if Gamma[-1]==0:     
+            integrand = lambda g: vce(g)*Gamma[0].pdf(g)
+            E,_ = integrate.quad(integrand, pg[i-1], pg[i])
+            sum += E
+        else:
+            indices = np.where((Gamma[0].x >= pg[i-1]) & (Gamma[0].x <= pg[i]))[0]
+            E = np.sum(vce(Gamma[0].x[indices])) / len(Gamma[0].x)
+            sum +=E
     return sum
 
 def f(pg, i, Gamma):
@@ -130,7 +134,7 @@ def objective_function(pg, Gamma):
 def parttodecision(partition):
     return [optimaldecision(partition[i],partition[i+1]) for i in range(len(partition))]
 
-def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1, max_iterations=1000, epsilon=1e-8, tolerance=1e-2, beta1=0.9, beta2=0.999):
+def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1, max_iterations=1000, epsilon=1e-8, tolerance=1e-3, beta1=0.9, beta2=0.999):
 
     def optimaldecision(a,b):
 
@@ -201,7 +205,7 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
     """
     # Set the initial guess for the partition
     partition = guess
-    
+    guesspartition = guess.copy()
     # Initialize the moment estimates for the gradient and its squared magnitude
     m = np.zeros_like(partition)
     v = np.zeros_like(partition)
@@ -209,9 +213,17 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
     path = []
     path.append(partition.copy()) # add the initial guess to the path
     
+    maxgradold = 9999
+
     for i in tqdm(range(max_iterations)):
         # Compute the gradient of the objective function
         grad = gradient(objective_function, partition)
+        maxgradnew = np.abs(grad).max()
+
+        d =1
+        if maxgradnew > 2 * maxgradold:
+            print("   doop")
+            d = maxgradold/maxgradnew
         
         # Update the moment estimates
         m = beta1 * m + (1 - beta1) * grad
@@ -222,11 +234,18 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
         v_hat = v / (1 - beta2**(i+1))
         
         # Adjust the partition using the Adam update rule
-        partition[1:-1] -= learning_rate * m_hat[1:-1] / (np.sqrt(v_hat[1:-1]) + epsilon)
+        partition[1:-1] -= d* learning_rate * m_hat[1:-1] / (np.sqrt(v_hat[1:-1]) + epsilon)
 
         # Enforce the constraints a=g0 and gn=b
         partition[0] = a
         partition[-1] = b
+
+        if i > 3:
+            difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))
+            if difference <  tolerance:
+                print('ploop')
+                partition = .5 * (np.array(partition)+np.array(path[-1]))
+
 
         path.append(partition.copy())
 
@@ -240,12 +259,15 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
             path.append(partition.copy())
             break
             
-        if i == max_iterations:
-            path.append(partition.copy())
-    
+        if i == max_iterations-1:
+            print(path[-1])
+            break
+            #return GDAlgorithm(a,b,eta, Gamma, guesspartition)
+
+        maxgradold = maxgradnew
     return path
 
-def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=1000,tolerance=1e-2):
+def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=1000,tolerance=1e-6):
     def optimaldecision(a,b):
 
         def f(m):
@@ -316,30 +338,46 @@ def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max
 
     path = []
     path.append(partition.copy()) # add the initial guess to the path
+    maxgradold = 9999
 
     for i in tqdm(range(max_iterations)):
         # Compute the gradient of the objective function
         grad = gradient(objective_function, partition)
-        
+        maxgradnew = np.abs(grad).max() 
+
+        d =1
+        if maxgradnew > 2 * maxgradold:
+            print("   doop")
+            d = maxgradold/maxgradnew
         # Adjust the partition using the gradient
-        partition[1:-1] -= learning_rate * grad[1:-1]
+        partition[1:-1] -= learning_rate * grad[1:-1] * d
 
         # Enforce the constraints a=g0 and gn=b
         partition[0] = a
         partition[-1] = b
 
+
+        if i > 3:
+            difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))
+            if difference <  1e-3 *tolerance:
+                print('   ploop')
+                partition = .5 * (np.array(partition)+np.array(path[-1]))
+
         path.append(partition.copy())
 
         #Check whether partition is in ascending order
         if np.all(np.diff(path) > 0) == False:
-            break
+            print('  infeasible region')
+            partition = .5 * (np.array(path[-2])+np.array(path[-1]))
+
 
         # Check for convergence
-        if np.abs(grad).max() < tolerance:
+        if maxgradnew < tolerance:
             path.append(partition.copy())
             break
             
         if i == max_iterations:
             path.append(partition.copy())
 
+        maxgradold = maxgradnew
     return path
