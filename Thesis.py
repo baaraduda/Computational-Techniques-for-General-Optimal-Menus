@@ -16,8 +16,8 @@ from functions import *
 
 
 #choice of gamma distributions
-N = 10000
-np.random.seed(126)
+N = 100000
+#np.random.seed(126)
 
 #uniform
 Gamma0 = stats.uniform(a,b-a)
@@ -44,10 +44,10 @@ Gamma4E = ECDF(np.sort(np.concatenate([Gamma2.rvs(N//2), Gamma3.rvs(N//2)])))
 #gamma = [GammaX, 0/1] where 1 is ecdf and 0 is cdf
 
 def returndistributions():
-    m_values = np.linspace(0, 1, 3)
+    m_values = np.linspace(0.1, .5, 3)
 
     # Generate a standard normal distribution of outcomes
-    n= 10000
+    n= 1000000
     Z = np.random.normal(size=n)
 
     # Create a figure and axis object
@@ -60,8 +60,8 @@ def returndistributions():
     # plot histograms for each m value
     for i, m in enumerate(m_values):
         R_values = [R(m, Z[j]) for j in range(n)]
-        plt.hist(R_values, bins=50, alpha=0.5, label=f"m={m}", density=True)
-        plt.axvline(np.mean(R_values), color=f'C{i}', linestyle='dashed', linewidth=1)
+        plt.hist(R_values, bins=500, alpha=0.5, label=f"m={m}", density=True)
+        plt.axvline(np.mean(R_values), color=f'C{i}', linestyle='dashed', linewidth=5)
 
 
     # Add labels and legend to the plot
@@ -72,6 +72,7 @@ def returndistributions():
 
     # Show the plot
     plt.show()
+#returndistributions()
 
 def gammadistributions():
     x = np.linspace(a,b,101)
@@ -317,57 +318,79 @@ def varyingEta(n, Gamma):
     plt.show()
 #varyingEta(2, [[Gamma0E,1], [Gamma1E,1], [Gamma4E,1]])
 
-def costOptimum(n,Eta,Gamma, ColLab, f):
+def costOptimum(n,eta,Gamma, ColLab, f):
 
-    for i, gamma in enumerate(Gamma):
+    if len(Gamma)==len(ColLab[0]):
+        for i, gamma in enumerate(Gamma):
+            print(ColLab[1][i])
+            vary = np.linspace(-.01,.01, len(Gamma))
+       
+            objList=np.zeros(n)
+            for m in range(1,n+1):
+                print(m)
+                P =GDAlgorithm(a,b,eta,gamma, np.linspace(a,b,m+1))[-2]
+                print(goal_function(P,eta, gamma))
+                objList[m-1] = invsp((goal_function(P,eta, gamma)),eta)
+        
+            X = np.arange(1,n+1)
+            plt.plot(X,objList, color=ColLab[0][i], label = ColLab[1][i])
 
 
+            objInfo = [(i+1, objList[i]) for i in range(len(objList))]
+            print(objInfo)
+
+            c = [(objList[i+1]-objList[i])/(f(i+2)-f(i+1)) for i in range(len(objList)-1)]
+
+            cInfo = [(i+2, c[i]) for i in range(len(c))]
+            print(cInfo)
+            cDiff = np.diff(c)
+            cPer = [cDiff[i]/c[i] for i in range(len(c)-1)] 
+            print(f'percentage decrease of {ColLab[1][i]} \n', cPer)
+
+            X = [x for x in range(2,n)]
+            Y = [[c[i],c[i+1]] for i in range(n-2)]
+            for x, (y1, y2) in zip(X, Y):
+                plt.plot([x+vary[i]] * 2, [y1, y2], '-o', color=ColLab[0][i], label = ColLab[1][i])
+
+    else: 
+        for i, eta in enumerate(Eta):
+            print('eta:', Eta[i])
+            vary = np.linspace(-.01,.01, len(Eta))
+
+            objList=[]
+            for m in range(1,n+1):
+                print(m)
+                P =GDAlgorithm(a,b,eta,Gamma, np.linspace(a,b,m+1))[-2]
+                objList.append(goal_function(P,eta ,Gamma))
+        
+            X = np.arange(1,n+1)
+            plt.plot(X,objList, color=ColLab[0][i], label = ColLab[1][i])
 
 
-    objList=[]
-    k=1
-    for m in range(1,n+1):
-        print(m)
-        P =GDAlgorithm(a,b,eta,gamma, np.linspace(a,b,m+1))[-2]
-        objList.append(goal_function(P,eta, gamma))
+            objInfo = [(i+1, objList[i]) for i in range(len(objList))]
+            print(objInfo)
 
-    objInfo = [(i+1, objList[i]) for i in range(len(objList))]
-    print(objInfo)
+            c = [(objList[i+1]-objList[i])/(f(i+2)-f(i+1)) for i in range(len(objList)-1)]
 
-    c = [(objList[i+1]-objList[i])/(f(i+2)-f(i+1)) for i in range(len(objList)-1)]
+            cInfo = [(i+2, c[i]) for i in range(len(c))]
+            print(cInfo)
 
-    cInfo = [(i+2, c[i]) for i in range(len(c))]
-    print(cInfo)
+            cDiff = np.diff(c)
+            cPer = [cDiff[i]/c[i] for i in range(len(c)-1)] 
+            print(f'percentage decrease of eta: {Eta[i]} \n', cPer)
 
-    for i in range(len(c)-1):
-        if c[i]<c[i+1]:
-            k = i
-    X = [x for x in range(2,n)]
-    Y = [[c[i],c[i+1]] for i in range(n-2)]
-    for x, (y1, y2) in zip(X, Y):
-        plt.plot([x] * 2, [y1, y2], '-o', color='red')
-    plt.xlim(0, n)  
+            X = [x for x in range(2,n)]
+            Y = [[c[i],c[i+1]] for i in range(n-2)]
+            for x, (y1, y2) in zip(X, Y):
+                plt.plot([x+vary[i]] * 2, [y1, y2], '-o', color=ColLab[0][i], label = ColLab[1][i])
     plt.show()
+    return 
 
-    ck = (c[k-1] + c[k])/2
-    cl = (c[k] + c[k+1])/2
-
-    Ck = [objList[i]-ck*f(i+1) for i in range(len(objList))]
-    CkInfo = [(i+1, Ck[i]) for i in range(len(Ck))]
-
-
-    Cl = [objList[i]-cl*f(i+1) for i in range(len(objList))]
-    ClInfo = [(i+1, Cl[i]) for i in range(len(Cl))]
-
-
-    print(f'cost factor c where n={k+1} is optimal is {ck} with costlist= {CkInfo}')
-    print(f'cost factor c where n={k+2} is optimal is {cl} with costlist= {ClInfo}')
-
-    # percentages = [(c[i+1]-c[i])/c[i] for i in range(len(c)-1)]
-    # print(percentages)
 def f(x):
     return x**2
-
-costOptimum(10, 1, [Gamma0E,1], f)
-
-comparison = [0, [Gamma0E, Gamma1E], ['Uniform', 'Normal Center'], ['blue', 'orange']]
+ 
+ 
+ColLab= [ [ 'orange','blue','green'],['Normal Center','Uniform', 'Normal Dip']]
+Gamma = [[Gamma0E,1], [Gamma1E,1], [Gamma4E, 1]]
+Eta = np.linspace(0,50,3)
+#costOptimum(5, .5, Gamma , ColLab, f)

@@ -56,6 +56,11 @@ class MixtureDistribution(rv_continuous):
     def _pdf(self, x):
         return self.w1 * self.dist1.pdf(x) + (1 - self.w1) * self.dist2.pdf(x)
 
+def invsp(v, eta):
+    if eta == 1:
+        return math.e**v
+    else:
+        return ((1-eta)*v+1)**(1/(1-eta))
 
 def optimaldecision(a,b, Gamma):
 
@@ -381,3 +386,5 @@ def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max
 
         maxgradold = maxgradnew
     return path
+
+d
