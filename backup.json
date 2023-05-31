@@ -1,4 +1,0 @@
-"files.autoSave": "afterDelay",
-"files.autoSaveDelay": 1000,
-"files.backupDelay": 3000,
-"files.backupDirectory": "/path/to/backup/directory"
