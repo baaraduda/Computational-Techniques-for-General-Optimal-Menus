@@ -1,49 +1,29 @@
 # This file is dedicated to produce all results needed in my thesis. Clarity is a must!
 import numpy as np
-
-import math
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 from scipy.optimize import root
-import scipy.stats as stats
-from tqdm import tqdm
-from scipy.stats import truncnorm
-from scipy.stats import rv_continuous
-import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from statsmodels.distributions.empirical_distribution import ECDF
-from functions import *
-from classtest import *
+from Classes import *
+from Settingfunctions import *
 
-#choice of gamma distributions
-N = 100000
-#np.random.seed(126)
+#np.random.seed(123)
 
-#uniform
-Gamma0 = stats.uniform(a,b-a)
-Gamma0E = ECDF(Gamma0.rvs(N))
-#plt.hist(Gamma0E.x[1:], bins=100, density=True)
-#plt.show()
-#normal center
-Gamma1 = stats.truncnorm((a - mean) / sig, (b - mean) / sig, mean, sig)
-Gamma1E = ECDF(Gamma1.rvs(N))
+Gammas = GammaDistributions(1,10) #we work with support [a=1, b=10] for gamma
+N = 10000
+a=1
+b=10
+n=3
+gammaE=Gammas.Eunif(N)
+eta = 1
+s1 = S(n= n, Gamma = gammaE, eta= 1)
 
-#normal left
-Gamma2 = stats.truncnorm((a - a) / sig, (b - a) / sig, a, sig)
-#Gamma2E = ECDF(Gamma2.rvs(N))
-
-#normal right
-Gamma3 = stats.truncnorm((a - b) / sig, (b - b) / sig, b, sig)
-#Gamma3E = ECDF(Gamma3.rvs(N))
-
-#normal dip
-
-Gamma4E = ECDF(np.sort(np.concatenate([Gamma2.rvs(N//2), Gamma3.rvs(N//2)])))
-
-
-#gamma = [GammaX, 0/1] where 1 is ecdf and 0 is cdf
-
-def returndistributions():
+def returndistributions(S):
+    sigma = S.sigma
+    mu = S.mu
+    r = S.r
+    T = S.T
     m_values = np.linspace(0.1, .5, 3)
 
     # Generate a standard normal distribution of outcomes
@@ -74,88 +54,83 @@ def returndistributions():
     plt.show()
 #returndistributions()
 
-def gammadistributions():
+def gammadistribution():
     x = np.linspace(a,b,101)
 
-    y0 = Gamma0.pdf(x)
+    y0 = Gammas.unif.pdf(x)
     plt.plot(x,y0, label= 'Uniform', color= 'blue')
 
-    y1 = Gamma1.pdf(x)
+    y1 = Gammas.normC.pdf(x)
     plt.plot(x,y1, label = 'Normal Center',color='orange')
 
-    y2 = Gamma2.pdf(x)
+    y2 = Gammas.normL.pdf(x)
     plt.plot(x,y2, label = 'Normal Left',color='green')
 
-    y3 = Gamma3.pdf(x)
+    y3 = Gammas.normR.pdf(x)
     plt.plot(x,y3, label = 'Normal Right', color= 'red')
 
-    y4 = .5*(Gamma2.pdf(x) + Gamma3.pdf(x))
+    y4 = .5*(Gammas.normL.pdf(x) + Gammas.normR.pdf(x))
     plt.plot(x,y4, label = 'Normal Dip', color='green')
 
     plt.legend(fontsize= 'large')
     plt.show()
 
-def comparison(n, eta, gamma, S, adam = 1):
+def IntrinsicComparison(S, obj = objG, algorithm = GD):
     '''
     n: is the amount of decisions. choose n >= 3 for best graphs
 
     adam: 1 if use Adams algorithm, 0 if use GD algorithm
     '''
-
+    a = S.a
+    b = S.b
     for LR in [1]:
-
-        if adam == 1:
-            print('Adam', f"LR={LR}")
-            P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-            print(P[-2])
-            for i in range(1,n-1):
-                g_values = [(p[i],p[i+1]) for p in P]
-                g1, g2 = zip(*g_values)
-                plt.plot(g1, g2, '-o', label=f"Adam pair ({i},{i+1}): n={n}, LR={LR}")
-
-        if adam == 0:
-            print('Gradient-Descent', f"LR={LR}")
-            #P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-            P = S.GD(1)
-            for i in range(1,n-1):
-                g_values = [(p[i],p[i+1]) for p in P]
-                g1, g2 = zip(*g_values)
-                plt.plot(g1, g2, '-o', label=f"Gradient-Descent pair ({i},{i+1}): n={n}, LR={LR}")
-
-    diagonal = [(x,x) for x in np.linspace(a,b,2)]
+        print(f'Algorithm: {label(algorithm)}, Objective: {label(obj)}, LR={LR}')
+        P= algorithm(S,obj=obj,allpath=1)
+        for i in range(1,n-1):
+            p_values = [(p[i],p[i+1]) for p in P]
+            p1, p2 = zip(*p_values)
+            plt.plot(p1, p2, '-o', label=f"Adam pair ({i},{i+1}): n={n}, LR={LR}")
+    if obj == objG:
+        diagonal = [(x,x) for x in np.linspace(a,b,2)]
+    if obj == objM:
+        diagonal = [(x,x) for x in np.linspace(mOpt(S,b),mOpt(S,a),2)]
     x1,x2 = zip(*diagonal)
     plt.plot(x1,x2,'-o', label="Feasible Boundary")
-
-    plt.text(b-0.1, b-0.1, "Feasible Boundary", fontsize=10)
     plt.legend(fontsize=20)
     plt.show()
 
+#IntrinsicComparison(s1, objM, GD)
 
-def AdamGDcomparison(n,eta, gamma):
-    # print('Adam', f"n={n}")
-    # P= AdamAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-    # print(P[-2])
-    # for i in range(1,n-1):
-    #     g_values = [(p[i],p[i+1]) for p in P]
-    #     g1, g2 = zip(*g_values)
-    #     plt.plot(g1, g2, '-o', label=f"Adam pair ({i},{i+1}): n={n}")
+def ExtrinsicComparison(S, variants, field = objG):
+    """
+    S: the setting class
+    variants: a list of lists containing [Adam/Gd, objM/objG]
+    field: whether we plot the steps in the risk or decision fields of all variants
+    field = 'objG': plot in terms of risk partitions
+    field = 'objM':  plot in terms of decision partitions
+    """
+    a = S.a
+    b = S.b
 
-    print('Gradient-Descent', f"n={n}")
-    P= GDAlgorithm(a,b, eta, gamma, guess = np.linspace(a,b,n+1))
-    print(P[-2])
-    for i in range(1,n-1):
-        g_values = [(p[i],p[i+1]) for p in P]
-        g1, g2 = zip(*g_values)
-        plt.plot(g1, g2, '-o', label=f"Gradient-Descent pair ({i},{i+1}): n={n}")
-
-    diagonal = [(x,x) for x in np.linspace(a,b,2)]
+    for variant in variants:
+        print(f'Algorithm: {label(variant[0])}, Objective: {label(variant[1])}')
+        P= variant[0](S, variant[1], allpath = 1)        
+        if variant[1]!=field: #translate if obj and fiel differ
+            P = np.fliplr(gOpt(S, np.array(P)))
+        for i in range(1,n-1):
+            p_values = [(p[i],p[i+1]) for p in P]
+            p1, p2 = zip(*p_values)
+            plt.plot(p1, p2, '-o', label=f" ({i},{i+1}):Algorithm: {label(variant[0])}, Objective: {label(variant[1])}")
+    if variant[1] == objG:
+        diagonal = [(x,x) for x in np.linspace(a,b,2)]
+    if variant[1] == objM:
+        diagonal = [(x,x) for x in np.linspace(mOpt(S,b),mOpt(S,a),2)]
     x1,x2 = zip(*diagonal)
     plt.plot(x1,x2,'-o', label="Feasible Boundary")
-
-    plt.text(b-0.1, b-0.1, "Feasible Boundary", fontsize=10)
     plt.legend(fontsize=20)
     plt.show()
-#AdamGDcomparison(4,1,[Gamma0E,1])
+Allvariants = [[Adam,objG],[GD,objG],[Adam, objM], [GD, objM]]
+ExtrinsicComparison(s1, [[GD, objM]], objG)
 
 def empericalEstimation(n, eta, gamma):
 
@@ -320,6 +295,8 @@ def varyingEta(n, Gamma):
 #varyingEta(2, [[Gamma0E,1], [Gamma1E,1], [Gamma4E,1]])
 
 def costOptimum(n,Eta,Gamma, ColLab, f, S):
+    n = S.n
+
 
     if len(Gamma)==len(ColLab[0]):
         for i, gamma in enumerate(Gamma):
@@ -330,12 +307,14 @@ def costOptimum(n,Eta,Gamma, ColLab, f, S):
             for m in range(1,n+1):
                 print(m)
                 eta =1
-                #S.n = m
-                #P = S.GD()
-                P = GDAlgorithm(a, b, eta, gamma)
-                print(goal_function(P,eta, gamma))
-                objList[m-1] = invsp((goal_function(P,eta, gamma)),eta)
-        
+                S.n = m
+                #print('Adam')
+                #P =Adam(S)[-2]
+                #print('GD, objG')
+                #P = GD(S, objG)[-2]
+                print('GD, objM')
+                P = GD(S, objM)[-2]
+
             X = np.arange(1,n+1)
             plt.plot(X,objList, color=ColLab[0][i], label = ColLab[1][i])
 
@@ -394,29 +373,23 @@ def f(x):
     return x**2
  
  
-Gammas = GammaDistributions(1,10) #we work with support [a=1, b=10] for gamma
-N = 100000
-a=1
-b=10
-n=5
-gammaE=Gammas.Eunif(N)
-eta = 1
-s1 = S(n= n, Gamma = gammaE, eta= 1)
 
-P = GDAlgorithm(a,b,eta,[Gamma0E,1],np.linspace(a,b,n+1))
-print(P[-2])
-#costOptimum(10, [1], [[Gamma0E,1]], [['blue'], ['unif']], f = f, S= s1)
 
-#print('class: \n',s1.optimalDecision(), s1.a, s1.b)
-#print('old: \n',optimaldecision(a,b,[gammaE,1]))
-#print('class: \n',s1.GD())
-
-#comparison(3, 1, [gammaE,1], s1, 0)
 
 def my_formula(i):
     return  (a**(1-i/n))*(b**(i/n))
 benchmark = np.fromfunction(my_formula,(n+1,))
-print('benchmark: \n:', benchmark)
+Mbenchmark = np.flip(mOpt(s1, benchmark))
+lr = 1
+#P = GD(s1,objG)[-2]
+#print(P)
+#print('benchmark: \n:', benchmark)
 
-#gdpath = GDAlgorithm(a,b,1,Gamma = [gammaE,1], guess= np.linspace(a,b,n+1))[-2]
-#print('old \n: ',gdpath)
+#P=GD(s1,objG)
+#print(P)
+#P =GD(s1, objM, learning_rate=lr/10)
+#print(P)
+#print('Mbenchmark: \n:', Mbenchmark)
+#print(objG(s1, benchmark))
+#print(objM(s1, Mbenchmark))
+
