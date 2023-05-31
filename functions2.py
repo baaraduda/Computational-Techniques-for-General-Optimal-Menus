@@ -56,11 +56,6 @@ class MixtureDistribution(rv_continuous):
     def _pdf(self, x):
         return self.w1 * self.dist1.pdf(x) + (1 - self.w1) * self.dist2.pdf(x)
 
-def invsp(v, eta):
-    if eta == 1:
-        return math.e**v
-    else:
-        return ((1-eta)*v+1)**(1/(1-eta))
 
 def optimaldecision(a,b, Gamma):
 
@@ -272,7 +267,7 @@ def AdamAlgorithm(a,b, eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=0.1
         maxgradold = maxgradnew
     return path
 
-def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=100,tolerance=1e-3):
+def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max_iterations=1000,tolerance=1e-6):
     if isinstance(Gamma[0],ECDF): 
         a, b = round(np.min(Gamma[0].x[1:-1])), round(np.max(Gamma[0].x[1:-1]))
     def optimaldecision(a,b):
@@ -291,9 +286,9 @@ def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max
                 
                 if len(Gamma)==3:
                     integrand1 = lambda g: g * e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                    E1,_ = integrate.romberg(integrand1, a, b)
+                    E1,_ = integrate.quad(integrand1, a, b)
                     integrand2 = lambda g: e(g) * .5 * (Gamma[0].pdf(g) + Gamma[1].pdf(g))
-                    E2,_ = integrate.romberg(integrand2, a, b)
+                    E2,_ = integrate.quad(integrand2, a, b)
 
                     return m-(mu-r)/((sigma**2)*E1/E2)
             else:
@@ -366,7 +361,7 @@ def GDAlgorithm(a,b,eta, Gamma, guess=np.linspace(a,b,n+1), learning_rate=1, max
 
         if i > 3:
             difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))
-            if difference <  1e-6 * tolerance:
+            if difference <  1e-3 *tolerance:
                 print('   ploop')
                 partition = .5 * (np.array(partition)+np.array(path[-1]))
 
