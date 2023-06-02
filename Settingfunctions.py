@@ -4,15 +4,20 @@ from scipy.optimize import root
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from statsmodels.distributions.empirical_distribution import ECDF
+from Classes import *
 
 ##Auxiliary functions
 
-def mOpt(S, g):
-    return (S.mu - S.r)/((S.sigma**2)*g)
-def gOpt(S, m):
-    return (S.mu - S.r)/((S.sigma**2)*m)
-
-def Usp(S, c):
+def trans(S, mg):
+    if np.isscalar(mg):
+        return (S.mu - S.r)/((S.sigma**2)*mg)
+    if isinstance(mg, np.ndarray):
+        if mg.ndim == 1:
+            return np.flip((S.mu - S.r)/((S.sigma**2)*mg))
+        else:
+            return np.fliplr((S.mu - S.r)/((S.sigma**2)*mg))
+        
+def Usp(S , c):
     """returns utility social planner for given eta and certainty equivalent c""" 
     eta = S.eta
     if eta == 1:
@@ -23,9 +28,9 @@ def Usp(S, c):
 def invUsp(S, u):
     eta = S.eta
     if eta == 1:
-        return np.e(u)
+        return np.exp(u)
     else:
-        return ((1-eta)*u + 1) ** (1 / 1- eta)
+        return ((1-eta)*u + 1) ** (1 / (1- eta))
 
 def RiskPartitionToMenu(S,partition):
     return [optimalDecision(S, partition[i],partition[i+1]) for i in range(len(partition))]
@@ -43,6 +48,24 @@ def label(x):
     if x == GD:
         return 'GD'
 
+def lin(x):
+    return x
+def log(x):
+    return np.log(x)
+def quad(x):
+    return x**2
+def exp(x):
+    return np.exp(x)
+
+def costlabel(x):
+    if x == lin:
+        return 'linear cost'
+    if x == log:
+        return 'logarithmic cost'
+    if x == quad:
+        return 'quadratic cost'
+    if x == exp:
+        return 'exponential cost'
 
 def goal_function(S, pg):
     eta = S.eta
@@ -58,13 +81,13 @@ def goal_function(S, pg):
     for i in range(1, len(pg)):
         mi = optimalDecision(S, pg[i-1],pg[i])
         def vce(g):
-            return Usp(eta, np.exp(r*T + (mu - r)*mi*T-.5*g*(sigma**2)*(mi**2)*T)) 
+            return Usp(S, np.exp(r*T + (mu - r)*mi*T-.5*g*(sigma**2)*(mi**2)*T)) 
         if isinstance(Gamma, ECDF):
-            indices = np.where((Gamma[0].x >= pg[i-1]) & (Gamma[0].x <= pg[i]))[0]
-            E = np.sum(vce(Gamma[0].x[indices])) / len(Gamma[0].x)
+            indices = np.where((Gamma.x >= pg[i-1]) & (Gamma.x <= pg[i]))[0]
+            E = np.sum(vce(Gamma.x[indices])) / len(Gamma.x)
             sum +=E          
-        if Gamma[-1]==0:     
-            integrand = lambda g: vce(g)*Gamma[0].pdf(g)
+        else:     
+            integrand = lambda g: vce(g)*Gamma.pdf(g)
             E,_ = integrate.quad(integrand, pg[i-1], pg[i])
             sum += E
 
@@ -113,8 +136,8 @@ def objG(S, g):
     H = lambda x,y: 2/((1/x)+(1/y))
     residuals = np.zeros(n-1)
     for i in range(1,n):
-        g1 = gOpt(S, optimalDecision(S, g[i-1],g[i]))
-        g2 = gOpt(S, optimalDecision(S, g[i],g[i+1]))
+        g1 = trans(S, optimalDecision(S, g[i-1],g[i]))
+        g2 = trans(S, optimalDecision(S, g[i],g[i+1]))
         residuals[i-1] = (g[i]-H(g1,g2))**2
     return np.sum(residuals)
 
@@ -122,8 +145,8 @@ def objM(S, m):
     n = S.n
     residuals = np.zeros(n-1)
     for i in range(1, n):
-        m1 = optimalDecision(S, gOpt(S, m[i]), gOpt(S, m[i-1]))
-        m2 = optimalDecision(S, gOpt(S, m[i+1]), gOpt(S, m[i]))
+        m1 = optimalDecision(S, trans(S, m[i]), trans(S, m[i-1]))
+        m2 = optimalDecision(S, trans(S, m[i+1]), trans(S, m[i]))
         residuals[i-1] = m[i] - 0.5 * (m1 + m2)
     return np.sum(residuals**2)
 
@@ -144,7 +167,7 @@ def gradient(S, f, x):
 
 #Algorithms:
 
-def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=1000, learning_rate=1):
+def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=100, learning_rate=1):
     a = S.a
     b = S.b
     n = S.n
@@ -152,9 +175,10 @@ def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=1000, learning
     # Set the initial guess for the partition
 
     if obj == objG:
-        partition = np.linspace(a,b,n+1)
+        #partition = np.flip(trans(S,np.linspace(trans(S,b), trans(S,a), n+1)))
+        partition = np.linspace(a, b, n+1)
     else:
-        partition = np.linspace(mOpt(S,b), mOpt(S,a), n+1)
+        partition = np.linspace(trans(S,b), trans(S,a), n+1)
 
     path = []
     path.append(partition.copy()) # add the initial guess to the path
@@ -177,8 +201,8 @@ def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=1000, learning
             partition[0] = a
             partition[-1] = b
         else:
-            partition[0] = mOpt(S,b)
-            partition[-1] =  mOpt(S,a) 
+            partition[0] = trans(S,b)
+            partition[-1] =  trans(S,a) 
 
         if i > 3:
             difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))
@@ -202,7 +226,7 @@ def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=1000, learning
         return path
     return path[-1]
 
-def Adam(S, obj = objG, allpath = 0, tolerance=1e-6, max_iterations=1000, learning_rate=0.01,  epsilon=1e-8,  beta1=0.9, beta2=0.999):
+def Adam(S, obj = objG, allpath = 0, tolerance=1e-6, max_iterations=100, learning_rate=.1,  epsilon=1e-8,  beta1=0.9, beta2=0.999):
     """
     Adam gradient descent algorithm for optimizing the objective function
     """
@@ -211,9 +235,10 @@ def Adam(S, obj = objG, allpath = 0, tolerance=1e-6, max_iterations=1000, learni
     n = S.n
     # Set the initial guess for the partition
     if obj == objG:
-        partition = np.linspace(a,b,n+1)
+        #partition = np.flip(trans(S,np.linspace(trans(S,b), trans(S,a), n+1)))
+        partition = np.linspace(a, b, n+1)
     else:
-        partition = np.linspace(mOpt(S,b), mOpt(S,a), n+1)
+        partition = np.linspace(trans(S,b), trans(S,a), n+1)
     # Initialize the moment estimates for the gradient and its squared magnitude
     m = np.zeros_like(partition)
     v = np.zeros_like(partition)
@@ -249,8 +274,8 @@ def Adam(S, obj = objG, allpath = 0, tolerance=1e-6, max_iterations=1000, learni
             partition[0] = a
             partition[-1] = b
         else:
-            partition[0] = mOpt(S,b)
-            partition[-1] =  mOpt(S,a) 
+            partition[0] = trans(S,b)
+            partition[-1] =  trans(S,a) 
 
         if i > 3:
             difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))

@@ -1,4 +1,5 @@
 
+
 import numpy as np
 import scipy.stats as stats
 from statsmodels.distributions.empirical_distribution import ECDF
@@ -7,39 +8,42 @@ from Settingfunctions import *
 class GammaDistributions:
 
     #A collection of continious random objects of scipy.stats with support [a,b]
-    def __init__(self, a, b):
+    def __init__(self, a, b, N):
         self.a = a
         self.b = b
+        self.N = N
         #used sigma and varianve for the distiubtions based on a and b
-        self.sigma = np.log(b/a)
+        self.sigma = np.log(b/(a))
         self.mean = (a+b)/2
 
     def unif(self):
         return stats.uniform(self.a,self.b-self.a)
     
-    def Eunif(self, N=1000):
-        return ECDF(self.unif().rvs(N))
+    def Eunif(self):
+        return ECDF(self.unif().rvs(self.N))
     
     def normC(self):
         return stats.truncnorm((self.a - self.mean) / self.sigma, (self.b - self.mean) / self.sigma, self.mean, self.sigma)
 
-    def EnormC(self, N=1000):
-        return ECDF(self.normC().rvs(N))
+    def EnormC(self):
+        return ECDF(self.normC().rvs(self.N))
 
     def normL(self):
         return stats.truncnorm((self.a - self.a) / self.sigma, (self.b - self.a) / self.sigma, self.a, self.sigma)
 
-    def EnormL(self, N=1000):
-        return ECDF(self.normL().rvs(N))
+    def EnormL(self):
+        return ECDF(self.normL().rvs(self.N))
 
     def normR(self):
         return stats.truncnorm((self.a - self.b) / self.sigma, (self.b - self.b) / self.sigma, self.b, self.sigma)
 
-    def EnormR(self, N=1000):
-        return ECDF(self.normR().rvs(N))
+    def EnormR(self):
+        return ECDF(self.normR().rvs(self.N))
     
-    def EnormD(self, N=1000):
-        return ECDF(self.normL().rvs(N/2)+self.normR().rvs(N/2))
+
+    def EnormD(self):
+        return ECDF(np.concatenate((self.normL().rvs(int(self.N/2)), self.normR().rvs(int(self.N/2)))))
+
 
 
 
