@@ -8,34 +8,11 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from Classes import *
 from Settingfunctions import *
 
-#np.random.seed(123)
-N = 10000
-a=1
-b=10
-Gammas = GammaDistributions(a,b,N) #we work with support [a=1, b=10] for gamma
-def GamLabCol(mode):
-    """
-    mode 1: only uniform
-    mode 2: normal center and normal dip
-    mode 3: normal left and normal right
-    """
 
-    if mode == 1:
-        return [Gammas.Eunif()], ['Uniform'] , ['blue']
-    if mode == 2:
-        return [Gammas.EnormC(), Gammas.EnormD()], ['Normal Center', 'Normal Dip'], ['green', 'blue']
-    if mode == 3:
-        return [Gammas.EnormL(), Gammas.EnormD()], ['Normal Left', 'Normal Right'], ['green', 'blue']
 
-n=2
-gammaE=Gammas.unif()         
 
-eta = 1
-s1 = S(n= n, Gamma = gammaE, eta= 1)
 
-def my_formula(i):
-    return  (a**(1-i/n))*(b**(i/n))
-benchmark = np.fromfunction(my_formula,(n+1,))
+
 
 def returndistributions(S):
     sigma = S.sigma
@@ -113,23 +90,24 @@ def IntrinsicComparison(S, algorithm = GD, obj = objG):
     '''
     a = S.a
     b = S.b
-    for LR in [1]:
+    n = S.n
+    for LR in [1e-6]:
         print(f'Algorithm: {label(algorithm)}, Objective: {label(obj)}, LR={LR}')
-        P= algorithm(S,obj=obj,allpath=1)
+        P= algorithm(S,obj=obj,allpath=1, max_iterations=1000, learning_rate=1)
         for i in range(1,n-1):
             p_values = [(p[i],p[i+1]) for p in P]
             p1, p2 = zip(*p_values)
-            plt.plot(p1, p2, '-o', label=f"Adam pair ({i},{i+1}): n={n}, LR={LR}")
-    if obj == objG:
-        diagonal = [(x,x) for x in np.linspace(a,b,2)]
+            plt.plot(p1, p2, '-o', label=f"{label(algorithm)} pair ({i},{i+1}): n={n}, LR={LR}")
+
     if obj == objM:
         diagonal = [(x,x) for x in np.linspace(trans(S,b),trans(S,a),2)]
+    else:
+        diagonal = [(x,x) for x in np.linspace(a,b,2)]
     x1,x2 = zip(*diagonal)
     plt.plot(x1,x2,'-o', label="Feasible Boundary")
     plt.legend(fontsize=20)
     plt.show()
-
-#IntrinsicComparison(s1, GD, objM)
+#IntrinsicComparison(s1, GD, objG)
 
 def ExtrinsicComparison(S, variants, field = objG):
     """
@@ -141,7 +119,7 @@ def ExtrinsicComparison(S, variants, field = objG):
     """
     a = S.a
     b = S.b
-
+    n = S.n
     for variant in variants:
         print(f'Algorithm: {label(variant[0])}, Objective: {label(variant[1])}')
         P= variant[0](S, variant[1], allpath = 1, tolerance = 1e-3)        
@@ -164,8 +142,9 @@ def ExtrinsicComparison(S, variants, field = objG):
     plt.show()
 #Allvariants = [[Adam,objG],[GD,objG],[Adam, objM], [GD, objM]]
 #GDvariants = [[GD, objM], [GD, objG]]
-#ExtrinsicComparison(s1, Allvariants, objG)
+#ExtrinsicComparison(s1, GDvariants, objG)
 #ExtrinsicComparison(s1, Allvariants, objM)
+
 
 
 def consistency(S, RGamma, algorithm = GD,  obj = objG):
@@ -239,10 +218,9 @@ def variationGammaEta(S, mode, chosenEta = np.linspace(0, 50, 11), Fully = 0, al
     """
     GammaSet consists of the gamma distributions to be compared such as:  [Gammas.Eunif(), Gammas.normC(), ..]
     FirstFully: 0, 1, decided whether we only take the first gamma from the GammaSet and analyse it in both graphs with the partitions and optimal elements, or we only look at the optimal decisions and optimal risk partitions of all gammas in GammaSet.
-    mode 1: only uniform
-    mode 2: normal center and normal dip
-    mode 3: normal left and normal right
     """
+    a = S.a
+    b = S.b
     fig1, Rax = plt.subplots(figsize=(8, 6))
     fig2, Dax = plt.subplots(figsize=(8, 6))    
     
@@ -251,7 +229,6 @@ def variationGammaEta(S, mode, chosenEta = np.linspace(0, 50, 11), Fully = 0, al
     circumstances = chosenEta.copy()
 
     GammaSet, Labels, Colors = GamLabCol(mode)
-
 
     for i, gamma in enumerate(GammaSet):
         S.Gamma = gamma
@@ -301,7 +278,7 @@ def variationGammaEta(S, mode, chosenEta = np.linspace(0, 50, 11), Fully = 0, al
 
             #Colors[i] = 'red'
 
-            Dax.scatter(Dpartitions[0], Dy, color=Colors[i], s=100)
+            Dax.scatter(Dpartitions[0], Dy, color=Colors[i], s=50)
             Rax.scatter(Gdecisions[0],Pz,marker='*' ,color=Colors[i], s=50)    
 
             for j in range(1, len(chosenEta)):
@@ -310,7 +287,6 @@ def variationGammaEta(S, mode, chosenEta = np.linspace(0, 50, 11), Fully = 0, al
 
                     Dy = [circumstances[j]] * len(Dpartitions[j])
                     Dax.scatter(Dpartitions[j], Dy, color=Colors[i], s=50) #add decision partition 
-            #break #break the GammaSet loop, only do this for the first one
 
     Rax.set_xlabel('Partitions')
     Dax.set_xlabel('Decisions')
@@ -319,8 +295,8 @@ def variationGammaEta(S, mode, chosenEta = np.linspace(0, 50, 11), Fully = 0, al
     Rax.legend()
     Dax.legend()
     plt.show()
-s1.n = 1
-#variationGammaEta(s1, 2, np.linspace(0,2, 26), Fully=1)
+
+variationGammaEta(s1, 2, np.linspace(0,25,4), Fully=1, algorithm=GD)
 
       
 def costOptimum(S, n, F, mode, compare = 0, algorithm = GD, obj = objG):
@@ -445,5 +421,7 @@ def costOptimum(S, n, F, mode, compare = 0, algorithm = GD, obj = objG):
     plt.show()
     return 
 F = [lin, log, quad, exp]
-costOptimum(s1, 5, F, mode =1, compare=3)
+#costOptimum(s1, 5, F, mode =1, compare=3)
+
+
  

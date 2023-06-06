@@ -11,7 +11,7 @@ import numpy as np
 from Settingfunctions import *
 from Classes import *
 import matplotlib.pyplot as plt
-Gammas = GammaDistributions(1,10) #we work with support [a=1, b=10] for gamma
+Gammas = GammaDistributions(1,10, 1000) #we work with support [a=1, b=10] for gamma
 N = 10000
 a=1
 b=10
@@ -54,4 +54,34 @@ c = 10  # Specify the value of c
 utility = Usp(s1, c)
 print(utility)
 
-len()
+
+import numpy as np
+from scipy.stats import truncnorm
+
+# Define the interval [a, b]
+a = -2
+b = 2
+
+# Define the mean and variance
+mean = 0
+variance = 1
+
+# Create the first truncated distribution
+dist1 = truncnorm((a - mean) / np.sqrt(variance),
+                  (b - mean) / np.sqrt(variance),
+                  loc=mean, scale=np.sqrt(variance))
+shape1 = (a - mean) / np.sqrt(variance)
+shape2 = (b - mean) / np.sqrt(variance)
+# Create the second truncated distribution
+# Create the second truncated distribution with different shape parameters
+dist2 = truncnorm(2 * shape1, 2 * shape2, loc=mean, scale=np.sqrt(variance))
+
+
+# Print the PDFs of the two distributions at a few points
+x = np.linspace(a, b, 100)
+pdf1 = dist1.pdf(x)
+pdf2 = dist2.pdf(x)
+
+plt.plot(x, pdf1)
+plt.plot(x, pdf2)
+plt.show()

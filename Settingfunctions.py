@@ -1,12 +1,12 @@
 import numpy as np
 import scipy.integrate as integrate
-from scipy.optimize import root
+from scipy import optimize
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from statsmodels.distributions.empirical_distribution import ECDF
 from Classes import *
 
 ##Auxiliary functions
+
 
 def trans(S, mg):
     if np.isscalar(mg):
@@ -47,7 +47,8 @@ def label(x):
         return 'Adam'
     if x == GD:
         return 'GD'
-
+    if x == goal_function:
+        return 'goal function'
 def lin(x):
     return x
 def log(x):
@@ -67,7 +68,7 @@ def costlabel(x):
     if x == exp:
         return 'exponential cost'
 
-def goal_function(S, pg):
+def goal_function(S, g):
     eta = S.eta
     Gamma = S.Gamma
     sigma = S.sigma
@@ -78,21 +79,20 @@ def goal_function(S, pg):
     sum = 0
 
 
-    for i in range(1, len(pg)):
-        mi = optimalDecision(S, pg[i-1],pg[i])
+    for i in range(1, len(g)):
+        mi = optimalDecision(S, g[i-1],g[i])
         def vce(g):
             return Usp(S, np.exp(r*T + (mu - r)*mi*T-.5*g*(sigma**2)*(mi**2)*T)) 
         if isinstance(Gamma, ECDF):
-            indices = np.where((Gamma.x >= pg[i-1]) & (Gamma.x <= pg[i]))[0]
+            indices = np.where((Gamma.x >= g[i-1]) & (Gamma.x <= g[i]))[0]
             E = np.sum(vce(Gamma.x[indices])) / len(Gamma.x)
             sum +=E          
         else:     
             integrand = lambda g: vce(g)*Gamma.pdf(g)
-            E,_ = integrate.quad(integrand, pg[i-1], pg[i])
+            E,_ = integrate.quad(integrand, g[i-1], g[i])
             sum += E
 
     return sum
-
 
 #Algorithm section--
 def optimalDecision(S, l=None, u=None):
@@ -124,12 +124,12 @@ def optimalDecision(S, l=None, u=None):
 
             return m-(mu-r)/((sigma**2)*E1/E2)
 
+    bracket = trans(S, np.array([l,u]))
+    x0 = .5 * np.sum(bracket)
 
-    x0 = .5 * ((mu-r)/(u*(sigma**2) + (mu-r)/(l*(sigma**2))))
+    sol = optimize.root_scalar(f, method = 'brentq', bracket = bracket, x0 = x0)
 
-    sol = root(f, x0)
-
-    return sol.x[0]
+    return sol.root
 
 def objG(S, g):
     n = S.n
@@ -147,8 +147,8 @@ def objM(S, m):
     for i in range(1, n):
         m1 = optimalDecision(S, trans(S, m[i]), trans(S, m[i-1]))
         m2 = optimalDecision(S, trans(S, m[i+1]), trans(S, m[i]))
-        residuals[i-1] = m[i] - 0.5 * (m1 + m2)
-    return np.sum(residuals**2)
+        residuals[i-1] = (m[i] - 0.5 * (m1 + m2))**2
+    return np.sum(residuals)
 
 def gradient(S, f, x):
     """
@@ -174,11 +174,13 @@ def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=100, learning_
     
     # Set the initial guess for the partition
 
-    if obj == objG:
-        #partition = np.flip(trans(S,np.linspace(trans(S,b), trans(S,a), n+1)))
-        partition = np.linspace(a, b, n+1)
+
+    if obj == objM:
+        #partition = np.linspace(trans(S,b), trans(S,a), n+1)
+        partition = trans(S,np.linspace(a, b, n+1))
     else:
-        partition = np.linspace(trans(S,b), trans(S,a), n+1)
+        partition = trans(S, np.linspace(trans(S,b), trans(S,a), n+1))
+        #partition = np.linspace(a, b, n+1)
 
     path = []
     path.append(partition.copy()) # add the initial guess to the path
@@ -197,12 +199,13 @@ def GD(S, obj = objG, allpath =0, tolerance=1e-6,  max_iterations=100, learning_
         partition[1:-1] -= learning_rate * grad[1:-1] * d
 
         # Enforce the constraints a=g0 and gn=b or m*(b) = m0 and m*(a) = mn
-        if obj == objG:
-            partition[0] = a
-            partition[-1] = b
-        else:
+        if obj == objM:
+
             partition[0] = trans(S,b)
             partition[-1] =  trans(S,a) 
+        else:
+            partition[0] = a
+            partition[-1] = b
 
         if i > 3:
             difference = np.sum(np.abs(np.array(partition)-np.array(path[-2])))
